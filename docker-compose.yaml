@@ -1,0 +1,85 @@
+x-default: &default-config
+  logging: 
+    driver: json-file
+    options:
+      max-size: "10m"
+  volumes:
+    - /etc/localtime:/etc/localtime:ro
+    - /etc/timezone:/etc/timezone:ro
+
+services:
+  nginx:
+    <<: *default-config
+    build: ./nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - frontend
+  ldap:
+    <<: *default-config
+    image: dcm4che/slapd-dcm4chee:2.6.7-33.0
+    env_file:
+      - ./env/ldap.env
+    volumes:
+      - ./dcm4chee-arc/ldap:/var/lib/openldap/openldap-data
+      - ./dcm4chee-arc/slapd.d:/etc/openldap/slapd.d
+    networks:
+      - backend
+
+  mariadb:
+    <<: *default-config
+    image: mariadb:10.11.4
+    env_file:
+      - ./env/mariadb.env
+    volumes:
+      - ./dcm4chee-arc/mysql:/var/lib/mysql
+    networks:
+      - backend
+
+  keycloak:
+    <<: *default-config
+    image: dcm4che/keycloak:25.0.5
+    env_file:
+      - ./env/keycloak.env
+    depends_on:
+      - ldap
+      - mariadb
+    volumes:
+      - ./dcm4chee-arc/keycloak:/opt/keycloak/data
+    networks:
+      - frontend
+      - backend
+
+  db:
+    <<: *default-config
+    image: dcm4che/postgres-dcm4chee:16.4-33
+    env_file:
+      - ./env/db.env
+    volumes:
+      - ./dcm4chee-arc/db:/var/lib/postgresql/data
+    networks:
+      - backend
+
+  arc:
+    <<: *default-config
+    image: dcm4che/dcm4chee-arc-psql:5.33.0-secure
+    ports:
+      - "11112:11112"
+    env_file:
+      - ./env/arc.env
+      - ./env/db.env
+    depends_on:
+      - ldap
+      - keycloak
+      - db
+    volumes:
+      - ./dcm4chee-arc/wildfly:/opt/wildfly/standalone
+      - ./dcm4chee-arc/storage:/storage
+    networks:
+      - frontend
+      - backend
+
+networks:
+  backend:
+  frontend:
