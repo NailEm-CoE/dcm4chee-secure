@@ -11,6 +11,8 @@ services:
   nginx:
     <<: *default-config
     build: ./nginx
+    env_file:
+      - ./env/nginx.env
     ports:
       - "80:80"
       - "443:443"
